@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import Lobby from './components/Lobby'
 import Game from './components/Game'
 
 
@@ -6,7 +7,8 @@ function App() {
     return (
         <Router>
             <Routes>
-                <Route path="/" element={<Game />} />
+                <Route path="/" element={<Lobby />} />
+                <Route path="/game/:gameid" element={<Game />} />
             </Routes>
         </Router>
     );

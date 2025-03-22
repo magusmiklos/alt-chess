@@ -1,58 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import config from '../config'
+import { useParams } from "react-router-dom";
+
 
 function Game() {
+    const [isGameLoaded, setIsGameLoaded] = useState(false);
+    const { gameid } = useParams();
 
-    const [socket, setSocket] = useState(null);
-    const [username, setUsername] = useState("");
-
-    const handlePlay = (event) => {
-        event.preventDefault();
-
-        const ws = new WebSocket(`${config.WS_BASE_URL}ws/matchmaking/`);
+    useEffect(() => {
+        const ws = new WebSocket(`${config.WS_BASE_URL}ws/game/${gameid}`);
 
         ws.onopen = () => {
-            console.log("connected to matchmaking");
+            console.log("connected to game");
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data)
-            if (data.action === 'match_found') {
-                console.log("found a match");
+            if (data.action === 'game_ready') {
+                console.log("game loaded");
+                setIsGameLoaded(true);
             };
         };
 
         ws.onerror = (error) => {
             console.log("WebSocket error: ", error);
         };
-    };
 
+    }, [gameid]);
+
+    const board = "WBWBWBWBBWBWBWBWWBWBWBWBBWBWBWBWWBWBWBWBBWBWBWBWWBWBWBWBBWBWBWBW";
+
+    const GenerateBoard = (board) => {
+        const display_board = []
+        for (let i = 0; i < board.length; i++) {
+            const isBlack = board[i] === 'B';
+            display_board.push(
+                <div
+                    key={i}
+                    className={`w-16 h-16 ${isBlack ? 'bg-black' : 'bg-white'}`}
+                ></div>
+            );
+        }
+        return display_board
+    }
 
     return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center p-6">
-            <form onSubmit={handlePlay} className="bg-gray-800 shadow-lg rounded-lg p-8 w-full max-w-sm">
-                <h2 className="text-white text-2xl font-bold mb-6 text-center">Join the Game</h2>
-                <div className="flex flex-col mb-4">
-                    <label htmlFor="username" className="mb-2 text-gray-300">
-                        Username
-                    </label>
-                    <input
-                        id="username"
-                        type="text"
-                        required
-                        placeholder="Enter your username"
-                        onChange={(e) => setUsername(e.target.value)}
-                        className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+        <>
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center p-6 flex-col">
+                <div className="grid grid-cols-8">
+                    {GenerateBoard(board)}
                 </div>
-                <button
-                    type="submit"
-                    className="w-full py-3 mt-4 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-semibold transition duration-200"
-                >
-                    Play
-                </button>
-            </form>
-        </div>
+            </div>
+        </>
     )
 }
 
