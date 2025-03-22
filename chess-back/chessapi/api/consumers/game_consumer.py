@@ -9,16 +9,14 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.game_group, self.channel_name)
         print(f"Player connected to game group {self.game_group}: {self.channel_name}")
 
-        game_ready_message = json.dumps({
-            "action": "game_ready",
-            "message": "Game is Ready!"
-        })
+        board = await self.CreateBoard(8)
 
         await self.channel_layer.group_send(
             self.game_group,
             {
                 "type":"send_ready_message",
-                "text": game_ready_message,
+                "action":"game_ready",
+                "board":board,
             }
         )
 
@@ -28,6 +26,21 @@ class GameConsumer(AsyncWebsocketConsumer):
         print(f"Player disconnected from game group {self.game_group}: {self.channel_name}")
 
     async def send_ready_message(self,event):
-        ready_message = event["text"]
-        await self.send(text_data=ready_message)
+        action = event["action"]
+        board = event["board"]
+        await self.send(text_data=json.dumps({
+            "action":action,
+            "board":board
+        }))
 
+    async def CreateBoard(self, num):
+        board = [[["K"],["N"],["N"],["N"],["N"],["N"],["N"],["K"]],
+                 [["N"],["N"],["N"],["N"],["N"],["N"],["N"],["N"]],
+                 [["N"],["N"],["N"],["N"],["N"],["N"],["N"],["N"]],
+                 [["N"],["N"],["N"],["N"],["N"],["N"],["N"],["N"]],
+                 [["N"],["N"],["P1"],["N"],["N"],["P2"],["N"],["N"]],
+                 [["N"],["N"],["N"],["N"],["N"],["N"],["N"],["N"]],
+                 [["N"],["N"],["N"],["N"],["N"],["N"],["N"],["N"]],
+                 [["K"],["N"],["N"],["N"],["N"],["N"],["N"],["K"]],]
+
+        return board
