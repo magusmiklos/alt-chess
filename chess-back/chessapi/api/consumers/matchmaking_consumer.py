@@ -23,10 +23,13 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
             player1 = lobby.pop(0)
             player2 = lobby.pop(0)
 
-            game_group = f"game_{uuid.uuid4().hex}"
+            rng = uuid.uuid4().hex
 
-            await self.channel_layer.group_add(game_group, player1)
-            await self.channel_layer.group_add(game_group, player2)
+            game_group = f"game_{rng}"
+            lobby_group = f"lobby_{rng}"
+
+            await self.channel_layer.group_add(lobby_group, player1)
+            await self.channel_layer.group_add(lobby_group, player2)
 
             match_message = json.dumps({
                 "action": "match_found",
@@ -35,7 +38,7 @@ class MatchmakingConsumer(AsyncWebsocketConsumer):
             })
 
             await self.channel_layer.group_send(
-                game_group,
+                lobby_group,
                 {
                     "type":"send_match_message",
                     "text": match_message,

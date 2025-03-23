@@ -32,6 +32,11 @@ function Lobby() {
         ws.onerror = (error) => {
             console.log("WebSocket error: ", error);
         };
+
+        return () => {
+            console.log("Closing WebSocket connection");
+            ws.close();
+        };
     };
 
 
@@ -47,7 +52,7 @@ function Lobby() {
                     <input
                         id="username"
                         type="text"
-                        required
+                        //required
                         placeholder="Enter your username"
                         onChange={(e) => setUsername(e.target.value)}
                         className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
