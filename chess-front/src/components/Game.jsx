@@ -21,6 +21,7 @@ function Game() {
     const [selectedPiece, setSelectedPiece] = useState(0);
     const [moves, setMoves] = useState([]);
     const [turn, setTurn] = useState(true);
+    const [error, setError] = useState(null);
 
     const { gameid } = useParams();
     const wsRef = useRef(null);
@@ -50,9 +51,13 @@ function Game() {
                     }
                 };
                 if (data.action === "board_update") {
-                    console.log("board update action recived");
+                    console.log("board update action recived, turn:", data.turn);
                     generateBoard(data.board)
+                    setTurn(data.turn);
 
+                }
+                if (data.type === "error") {
+                    setError(data.message)
                 }
             };
 
@@ -131,6 +136,7 @@ function Game() {
 
             wsRef.current.send(JSON.stringify(message));
             console.log("sent move to ws")
+            setError(null);
         }
     }
 
@@ -144,6 +150,7 @@ function Game() {
                 <button onClick={handleMove} className="mt-4 px-6 py-3 bg-gradient-to-r from-gray-800 to-slate-800 text-white font-bold text-lg rounded-2xl">
                     Move
                 </button>
+                {error && (<p className="text-red-500 text-lg">{error}</p>)}
                 <div className="flex felx-row mt-5">
                     {UIItems.map((item, index) => (
                         <div key={`piece-${index}`} className="cursor-pointer select-none flex justify-center items-center flex-col" onClick={() => handleSelectPiece(index)}>

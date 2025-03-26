@@ -44,27 +44,28 @@ class GameConsumer(AsyncWebsocketConsumer):
         action = text_data_json.get("action")
 
         if action == "move":
-            move_from = text_data_json.get("move")[0]
-            move_to = text_data_json.get("move")[1]
+            board = GameConsumer.players_by_group[self.game_group]["board"]
 
-            if not (0 <= move_from[0] < 8 and 0 <= move_from[1] < 8 and 0 <= move_to[0] < 8 and 0 <= move_to[1] < 8):
-                await self.send(text_data=json.dumps({
-                    "type": "error",
-                    "message": "Invalid move coordinates."
-                }))
+            is_move_valid = await self.is_move_valid(text_data_json, board)
+            if not is_move_valid:
+                await self.send_error_move_message()
                 return
 
-            await self.make_move_on_board(move_from, move_to)
+            is_move_legal = await self.is_move_legal(text_data_json, board)
+            if not is_move_legal:
+                await self.send_error_move_message()
+                return
+
+            await self.make_move_on_board(text_data_json, board)
 
             # Broadcast updated board state to all connected clients in the game group
             await self.channel_layer.group_send(
                 self.game_group,
                 {
                     "type": "send_game_state",
-                    "board": GameConsumer.players_by_group[self.game_group]["board"],
                 }
             )
-            print("a move was made")
+            print("a move was made, turn: ", GameConsumer.players_by_group[self.game_group]["turn"])
 
     async def create_board(self):
         # Initialize the board
@@ -73,7 +74,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
-            [["N"], ["N"], ["P1", 2], ["N"], ["N"], ["P2", 2], ["N"], ["N"]],
+            [["N"], ["P1",2], ["P1", 2], ["N"], ["N"], ["P2", 2], ["P2",2], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["K"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["K"]],
@@ -95,12 +96,20 @@ class GameConsumer(AsyncWebsocketConsumer):
             group_players[self.channel_name] = not first_value
             print("assigning the second player", group_players)
 
-    async def make_move_on_board(self, move_from, move_to):
-        board = GameConsumer.players_by_group[self.game_group]["board"]
+    async def make_move_on_board(self, data, board):
+        move_from = data.get("move")[0]
+        move_to = data.get("move")[1]
 
         # Make the move on the board
         board[move_from[0]][move_from[1]], board[move_to[0]][move_to[1]] = \
-            board[move_to[0]][move_to[1]], board[move_from[0]][move_from[1]]
+            ["N"], board[move_from[0]][move_from[1]]
+
+        board[move_to[0]][move_to[1]][1] -= data.get("piece")
+
+        for i in range(len(board)):
+            for j in range(len(board[i])):
+                if board[i][j][0] == "P1" or board[i][j][0] == "P2":
+                    board[i][j][1] += 1
 
         # Toggle the turn after the move
         GameConsumer.players_by_group[self.game_group]["turn"] = not GameConsumer.players_by_group[self.game_group]["turn"]
@@ -113,5 +122,116 @@ class GameConsumer(AsyncWebsocketConsumer):
             "type": "game_state_update",
             "action":"board_update",
             "board": board,
+            "turn": GameConsumer.players_by_group[self.game_group]["turn"]
         }))
+
+    async def send_error_move_message(self):
+        await self.send(text_data=json.dumps({
+            "type": "error",
+            "message": "Invalid move."
+        }))
+        print("invalid move")
+
+
+    async def is_move_valid(self, data, board):
+        turn = GameConsumer.players_by_group[self.game_group]["turn"]
+
+        # It's the other player's turn
+        if GameConsumer.players_by_group[self.game_group][self.channel_name] != turn:
+            print("it s the other players turn")
+            return False
+
+        move = data.get("move")
+
+        if len(move) != 2:
+            print("move arr must have len 2")
+            return False
+        
+        from_pos = move[0]  
+        to_pos = move[1] 
+
+        if board[from_pos[0]][from_pos[1]][0] == "P1" and not turn:
+            print("selected piece P1 and turn is on P2")
+            return False
+
+        if board[from_pos[0]][from_pos[1]][0] == "P2" and turn:
+            print("selected piece P2 and turn is on P1")
+            return False
+
+        if board[from_pos[0]][from_pos[1]][0] not in ["P1", "P2"]:
+            print("on the selected square there is no piece")
+            return False
+
+        if board[from_pos[0]][from_pos[1]][0] == board[to_pos[0]][to_pos[1]][0]:
+            print("from and to is the same pos")
+            return False
+        
+        # if you don't have enough money => invalid move
+        if board[from_pos[0]][from_pos[1]][1] < data.get("piece"):
+           return False
+
+        # NOTE: Returns true and not checking of move in in the boands of the board
+        return True
+    async def is_move_legal(self, data, board):
+        piece = data.get("piece")
+        move = data.get("move")
+        from_pos = move[0]
+        to_pos = move[1]
+    
+        #[1] => x [0] => y
+        #pawn
+        if piece == 0:
+            if from_pos[1] == to_pos[1] and from_pos[0]-1 == to_pos[0] and board[to_pos[0]][to_pos[1]][0] == "N":
+                return True
+            elif abs(from_pos[1] - to_pos[1]) == 1 and from_pos[0]-1 == to_pos[0] and board[to_pos[0]][to_pos[1]][0] != "N":
+                return True
+        #horse
+        elif piece == 1:
+            if abs(from_pos[1] - to_pos[1]) == 1 and abs(from_pos[0] - to_pos[0]) == 2:
+                return True
+            elif abs(from_pos[1] - to_pos[1]) == 2 and abs(from_pos[0] - to_pos[0]) == 1:
+                return True
+        #bishop
+        elif piece == 2:
+            if abs(from_pos[0] - to_pos[0]) == abs(from_pos[1] - to_pos[1]):
+                dy = 1 if to_pos[0] > from_pos[0] else -1
+                dx = 1 if to_pos[1] > from_pos[1] else -1
+                
+                x,y = from_pos[1]+dx,from_pos[0]+dy
+
+                while [y,x] != to_pos:
+                    if board[y][x][0] != "N":
+                        print("you can t jump with bishop")
+                        return False
+                    x += dx
+                    y += dy
+ 
+                return True
+        #rook
+        elif piece == 3:
+            if from_pos[0] == to_pos[0]:
+                dx = 1 if to_pos[1] > from_pos[1] else -1
+
+                x = from_pos[1] + dx
+
+                while x != to_pos[1]:
+                    if board[from_pos[0]][x][0] != "N":
+                        print("rook tryed jump 0")
+                        return False
+                    x += dx
+                return True
+            elif from_pos[1] == to_pos[1]:
+                dy = 1 if to_pos[0] > from_pos[0] else -1
+
+                y = from_pos[0] + dy
+
+                while y != to_pos[0]:
+                    if board[y][from_pos[1]][0] != "N":
+                        print("rook tryed jump 1")
+                        return False
+                    y += dy
+                return True
+ 
+
+        return False
 
