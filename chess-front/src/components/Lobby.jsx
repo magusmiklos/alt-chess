@@ -25,7 +25,7 @@ function Lobby() {
             if (data.action === 'match_found') {
                 console.log("found a match game_group: ", data.game_group);
                 const gameid = data.game_group
-                navigate(`/game/${gameid}`)
+                navigate(`/game/${username}/${gameid}`)
             };
         };
 
@@ -52,7 +52,7 @@ function Lobby() {
                     <input
                         id="username"
                         type="text"
-                        //required
+                        required
                         placeholder="Enter your username"
                         onChange={(e) => setUsername(e.target.value)}
                         className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"

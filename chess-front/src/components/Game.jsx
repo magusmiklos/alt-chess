@@ -25,13 +25,14 @@ function Game() {
     const [error, setError] = useState(null);
     const [kings, setKings] = useState([]);
     const [gameOver, setGameOver] = useState(0);
+    const [usernames, setUsernames] = useState(["Player1", "Player2"]);
 
-    const { gameid } = useParams();
+    const { username, gameid } = useParams();
     const wsRef = useRef(null);
     useEffect(() => {
         console.log("reload ws")
         if (!wsRef.current) {
-            const ws = new WebSocket(`${config.WS_BASE_URL}ws/game/${gameid}`);
+            const ws = new WebSocket(`${config.WS_BASE_URL}ws/game/${username}/${gameid}`);
             wsRef.current = ws;
 
             ws.onopen = () => {
@@ -42,10 +43,11 @@ function Game() {
                 const data = JSON.parse(event.data)
                 if (data.action === 'game_ready') {
                     console.log("game loaded you're player order:", data.order);
-                    console.log(data)
                     setIsGameLoaded(true);
                     generateBoard(data.board)
                     setPlayerOrder(data.order)
+                    setUsernames(data.usernames)
+                    console.log("usernames:", data.usernames)
                     if (data.order) {
                         setUIItems([Wpawn, Whorse, Wbishop, Wrook])
                     }
@@ -53,6 +55,10 @@ function Game() {
                         setUIItems([Bpawn, Bhorse, Bbishop, Brook])
                     }
                 };
+                if (data.action === 'ready_all') {
+                    console.log(data.usernames)
+                    setUsernames(data.usernames)
+                }
                 if (data.action === "board_update") {
                     console.log("board update action recived, turn:", data.turn);
                     generateBoard(data.board);
@@ -164,7 +170,8 @@ function Game() {
 
                         ))}
                     </div>
-                    <div className="flex flex-row w-full justify-end items-center my-1">
+                    <div className="flex flex-row w-full justify-between items-center my-1">
+                        <div className="text-white font-bold">{usernames && usernames.length > 1 && `${usernames[0]} Vs ${usernames[1]}`}</div>
                         <div className={`w-5 h-5 rounded-full ${turn ? "bg-white" : "bg-black"}`} />
                     </div>
 

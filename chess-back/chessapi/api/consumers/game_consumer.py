@@ -8,6 +8,7 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         self.game_group = self.scope['url_route']['kwargs']['game_group']
+        username = self.scope['url_route']['kwargs']['username']
         
         if self.game_group not in GameConsumer.players_by_group:
             GameConsumer.players_by_group[self.game_group] = {}
@@ -17,10 +18,11 @@ class GameConsumer(AsyncWebsocketConsumer):
         print(f"Player connected to game group {self.game_group}: {self.channel_name}")
 
         await self.assign_player_order()
+        await self.handle_usernames(username)
 
         await self.create_board()
         order = GameConsumer.players_by_group[self.game_group][self.channel_name]
-        print(f"sending order player: {self.channel_name} , order: {order}")
+
         await self.send(json.dumps(
             {
                 "type": "send_ready_message",
@@ -29,6 +31,14 @@ class GameConsumer(AsyncWebsocketConsumer):
                 "order": order,
             })
         )
+
+        if len(GameConsumer.players_by_group[self.game_group]) > 1:
+            await self.channel_layer.group_send(
+                    self.game_group,{
+                        "type": "send_ready_all",
+                        "usernames": GameConsumer.players_by_group[self.game_group]["usernames"],
+                        }
+                    )
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(self.game_group, self.channel_name)
@@ -99,6 +109,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         if not group_players:
             group_players[self.channel_name] = random.choice([True, False])
             print("assigning the first player")
+
         else:
             first_value = next(iter(group_players.values()))
             group_players[self.channel_name] = not first_value
@@ -129,12 +140,17 @@ class GameConsumer(AsyncWebsocketConsumer):
         
         # Broadcast the new board state to all connected clients in the game group
         await self.send(text_data=json.dumps({
-            "type": "game_state_update",
             "action":"board_update",
             "board": board,
             "kings": GameConsumer.players_by_group[self.game_group]["kings"],
             "turn": GameConsumer.players_by_group[self.game_group]["turn"],
         }))
+
+    async def send_ready_all(self, event):
+        await self.send(text_data=json.dumps({
+            "action":"ready_all",
+            "usernames":event.get("usernames")
+            }))
 
     async def send_game_over(self,event):
         await self.send(text_data=json.dumps({
@@ -279,5 +295,10 @@ class GameConsumer(AsyncWebsocketConsumer):
             return 2
         return 0
 
+    async def handle_usernames(self,username):
+        if "usernames" not in GameConsumer.players_by_group[self.game_group]:
+            GameConsumer.players_by_group[self.game_group]["usernames"] = [username]
+        else:
+            GameConsumer.players_by_group[self.game_group]["usernames"].append(username)
 
 
