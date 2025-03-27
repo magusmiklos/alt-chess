@@ -12,6 +12,7 @@ import Wking from "../assets/Wking.png";
 import Bhorse from "../assets/Bhorse.png";
 import Whorse from "../assets/Whorse.png";
 import Gking from "../assets/Gking.png";
+import { useNavigate, Link } from "react-router-dom";
 
 function Game() {
     const [isGameLoaded, setIsGameLoaded] = useState(false);
@@ -22,6 +23,8 @@ function Game() {
     const [moves, setMoves] = useState([]);
     const [turn, setTurn] = useState(true);
     const [error, setError] = useState(null);
+    const [kings, setKings] = useState([]);
+    const [gameOver, setGameOver] = useState(0);
 
     const { gameid } = useParams();
     const wsRef = useRef(null);
@@ -52,12 +55,18 @@ function Game() {
                 };
                 if (data.action === "board_update") {
                     console.log("board update action recived, turn:", data.turn);
-                    generateBoard(data.board)
+                    generateBoard(data.board);
                     setTurn(data.turn);
+                    setKings(data.kings);
+                    console.log("capcured kings:", data.kings)
 
                 }
+                if (data.action === "game_over") {
+                    setGameOver(data.won);
+                    console.log("game over player won:", data.won);
+                }
                 if (data.type === "error") {
-                    setError(data.message)
+                    setError(data.message);
                 }
             };
 
@@ -106,10 +115,10 @@ function Game() {
                 display_board.push(
                     <div
                         key={`${i}-${j}`}
-                        className={`w-16 h-16 ${color} flex justify-center items-center relative`}
+                        className={` w-10 h-10 lg:w-16 lg:h-16 ${color} flex justify-center items-center relative`}
                         onClick={() => handleSelect(i, j)}
                     >
-                        {piece && (<><img src={piece} alt={`Piece at ${i},${j}`} className="w-16 h-16" /><p className="absolute bottom-1 text-xl text-green-500 font-bold">{money}</p></>)}
+                        {piece && (<><img src={piece} alt={`Piece at ${i},${j}`} className=" w-10 h-10 lg:w-16 lg:h-16" /><p className="absolute lg:bottom-1 bottom-0 text-lx lg:text-xl text-green-500 font-bold">{money}</p></>)}
                     </div>
                 );
             }
@@ -119,6 +128,7 @@ function Game() {
     }
 
     const handleSelect = (i, j) => {
+        console.log(i, j);
         setMoves((prevMoves) => [...prevMoves, [i, j]]);
     }
 
@@ -141,29 +151,50 @@ function Game() {
     }
 
     return (
-        <>
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center p-6 flex-col">
-                <div className="flex justify-end items-center w-full"><div className={`w-10 h-10 rounded-full ${turn ? "bg-white" : "bg-black"}`} /></div>
-                <div className="grid grid-cols-8">
-                    {board}
+        <div className="flex flex-col min-h-screen bg-gray-900">
+            <div className="flex justify-end items-center w-full p-5">
+                <Link className="text-white ml-5" to='/'>Exit</Link>
+            </div>
+
+            <div className="flex-grow flex items-center justify-center flex-col">
+                <div>
+                    <div className="flex flex-row">
+                        {kings.map((item, index) => (
+                            <img key={`King ${index}`} src={item === true ? Wking : Bking} alt={`King ${index}`} className=" w-10 h-10 lg:w-16 lg:h-16" />
+
+                        ))}
+                    </div>
+                    <div className="flex flex-row w-full justify-end items-center my-1">
+                        <div className={`w-5 h-5 rounded-full ${turn ? "bg-white" : "bg-black"}`} />
+                    </div>
+
+                    <div className="relative">
+                        <div className="grid grid-cols-8">
+                            {board}
+
+                        </div>
+
+                        {gameOver !== 0 && (
+                            <div className="absolute inset-0 flex justify-center items-center"><p className="font-bold text-6xl text-green-500">{gameOver === 1 ? ("White won") : ("Black won")}</p></div>)}
+                    </div>
                 </div>
                 <button onClick={handleMove} className="mt-4 px-6 py-3 bg-gradient-to-r from-gray-800 to-slate-800 text-white font-bold text-lg rounded-2xl">
                     Move
                 </button>
                 {error && (<p className="text-red-500 text-lg">{error}</p>)}
-                <div className="flex felx-row mt-5">
+                <div className="flex flex-row mt-5">
                     {UIItems.map((item, index) => (
                         <div key={`piece-${index}`} className="cursor-pointer select-none flex justify-center items-center flex-col" onClick={() => handleSelectPiece(index)}>
                             <img
                                 src={item}
-                                className={`pointer-events-none w-32 h-32 m-2 ${index === selectedPiece ? "outline outline-green-500 outline-5" : ""}`}
+                                className={`pointer-events-none w-16 h-16 lg:w-24 lg:h-24 m-2 ${index === selectedPiece ? "outline outline-green-500 outline-5" : ""}`}
                             />
-                            <p className="text-6xl text-green-500 font-extrabold mt-3">{index}</p>
+                            <p className="text-3xl lg:text-4xl text-green-500 font-extrabold mt-3">{index}</p>
                         </div>
                     ))}
                 </div>
             </div >
-        </>
+        </div>
     )
 }
 

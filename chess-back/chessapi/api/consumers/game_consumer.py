@@ -58,6 +58,8 @@ class GameConsumer(AsyncWebsocketConsumer):
 
             await self.make_move_on_board(text_data_json, board)
 
+            game_state = await self.get_game_state(board)
+
             # Broadcast updated board state to all connected clients in the game group
             await self.channel_layer.group_send(
                 self.game_group,
@@ -67,22 +69,28 @@ class GameConsumer(AsyncWebsocketConsumer):
             )
             print("a move was made, turn: ", GameConsumer.players_by_group[self.game_group]["turn"])
 
+            if game_state != 0:
+                await self.channel_layer.group_send(self.game_group,{"type": "send_game_over","won":game_state})
+ 
+
     async def create_board(self):
+        if "board" in GameConsumer.players_by_group[self.game_group] and GameConsumer.players_by_group[self.game_group]["board"]:
+            return
+
         # Initialize the board
         board = [
             [["K"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["K"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
-            [["N"], ["P1",2], ["P1", 2], ["N"], ["N"], ["P2", 2], ["P2",2], ["N"]],
+            [["N"], ["P1",1], ["P1",1], ["N"], ["N"], ["P2",1], ["P2",1], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"]],
             [["K"], ["N"], ["N"], ["N"], ["N"], ["N"], ["N"], ["K"]],
         ]
         
-        if "board" not in GameConsumer.players_by_group[self.game_group]:
-            GameConsumer.players_by_group[self.game_group]["board"] = board
-        
+        GameConsumer.players_by_group[self.game_group]["board"] = board
+        GameConsumer.players_by_group[self.game_group]["kings"] = []
         GameConsumer.players_by_group[self.game_group]["turn"] = True
 
     async def assign_player_order(self):
@@ -100,16 +108,18 @@ class GameConsumer(AsyncWebsocketConsumer):
         move_from = data.get("move")[0]
         move_to = data.get("move")[1]
 
+        if board[move_from[0]][move_from[1]][0] == "P1" and board[move_to[0]][move_to[1]][0] == "K":
+            GameConsumer.players_by_group[self.game_group]["kings"].append(True)
+            print("P1 capcured a king")
+        if board[move_from[0]][move_from[1]][0] == "P2" and board[move_to[0]][move_to[1]][0] == "K":
+            GameConsumer.players_by_group[self.game_group]["kings"].append(False)
+            print("P2 capcured a king")
+
         # Make the move on the board
         board[move_from[0]][move_from[1]], board[move_to[0]][move_to[1]] = \
             ["N"], board[move_from[0]][move_from[1]]
 
         board[move_to[0]][move_to[1]][1] -= data.get("piece")
-
-        for i in range(len(board)):
-            for j in range(len(board[i])):
-                if board[i][j][0] == "P1" or board[i][j][0] == "P2":
-                    board[i][j][1] += 1
 
         # Toggle the turn after the move
         GameConsumer.players_by_group[self.game_group]["turn"] = not GameConsumer.players_by_group[self.game_group]["turn"]
@@ -122,8 +132,15 @@ class GameConsumer(AsyncWebsocketConsumer):
             "type": "game_state_update",
             "action":"board_update",
             "board": board,
-            "turn": GameConsumer.players_by_group[self.game_group]["turn"]
+            "kings": GameConsumer.players_by_group[self.game_group]["kings"],
+            "turn": GameConsumer.players_by_group[self.game_group]["turn"],
         }))
+
+    async def send_game_over(self,event):
+        await self.send(text_data=json.dumps({
+            "action":"game_over",
+            "won":event.get("won")
+            }))
 
     async def send_error_move_message(self):
         await self.send(text_data=json.dumps({
@@ -234,4 +251,33 @@ class GameConsumer(AsyncWebsocketConsumer):
  
 
         return False
+
+
+    async def get_game_state(self,board):
+        if GameConsumer.players_by_group[self.game_group]["kings"].count(True) >= 3:
+            return 1
+        if GameConsumer.players_by_group[self.game_group]["kings"].count(False) >= 3:
+            return 2
+
+        P1_count = 0
+        P2_count = 0
+
+
+        for i in range(len(board)):
+            for j in range(len(board[i])):
+                if board[i][j][0] == "P1":
+                    board[i][j][1] += 1
+                    P1_count += 1
+
+                elif board[i][j][0] == "P2":
+                    board[i][j][1] += 1
+                    P2_count += 1
+
+        if P2_count == 0:
+            return 1 
+        elif P1_count == 0:
+            return 2
+        return 0
+
+
 
